@@ -1,0 +1,46 @@
+name: Add Epic to Custom Field
+
+on:
+  issues:
+    types:
+      - labeled
+
+jobs:
+  add-epic-to-project:
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'epic'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Get Project ID
+        id: get-project-id
+        run: |
+          PROJECT_NAME="NecroEcho"
+          PROJECT_ID=$(gh api graphql -F name="$PROJECT_NAME" -f query='
+            query($name: String!) {
+              organization(login: "personal-theory") {
+                projectV2(name: $name) {
+                  id
+                }
+              }
+            }
+          ' | jq -r '.data.organization.projectV2.id')
+          echo "PROJECT_ID=$PROJECT_ID" >> $GITHUB_ENV
+
+      - name: Add Epic to Custom Field
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          FIELD_ID="Epic"
+          NEW_OPTION=$ISSUE_TITLE
+          gh api graphql -F projectId="$PROJECT_ID" -F fieldId="$FIELD_ID" -F value="$NEW_OPTION" -f query='
+            mutation($projectId: ID!, $fieldId: ID!, $value: String!) {
+              addProjectV2ItemFieldOption(input: {projectId: $projectId, fieldId: $fieldId, value: $value}) {
+                customField {
+                  name
+                }
+              }
+            }
+          '
